@@ -1,13 +1,43 @@
-﻿# GraphQl in Asp.NET Core Web API
+﻿# GraphQL in Asp.NET Core Web API with .NET 8 
 
 GraphQL is a query language. It executes queries by using type systems which we define for our data. 
 GraphQL isn’t tied to any specific language or a database, just the opposite, it is adaptable to our code and our data as well.
 
-# Create a Asp.NET Core Web API Project
+## Create a Asp.NET Core Web API Project
 
 ```bash
 dotnet new webapi --use-controllers -n GraphQLWebApi
 ```
+
+## Add EF Core as an ORM cor SQL Server connexion
+
+
+```bash
+ dotnet add package Microsoft.EntityFrameworkCore --version 8.0.3
+
+ dotnet add package Microsoft.EntityFrameworkCore.Relational --version 8.0.3
+
+ dotnet add package Microsoft.EntityFrameworkCore.SqlServer --version 8.0.3
+
+ ```
+ Add the connection string.
+
+ ```json
+
+ {
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Warning"
+    }
+  },
+  "AllowedHosts": "*",
+  "ConnectionStrings": {
+    "ApplicationContext": "server=.; database=GraphQLWDatabase; Integrated Security=true; TrustServerCertificate=True"
+  }
+}
+
+ ```
 
 Create the "Contract" folder for interfaces. The Contracts folder contains interfaces required for our repository logic:
 ```csharp
@@ -121,7 +151,7 @@ As we can see, we are using the Code-First approach in the begining of this proj
 https://www.nuget.org/packages/GraphQL/
 
 ```bash
- dotnet add package GraphQL --version 7.8.0
+ dotnet add package GraphQL 
 
 
  dotnet add package GraphQL.Server.Transports.AspNetCore
@@ -131,8 +161,6 @@ https://www.nuget.org/packages/GraphQL/
 
 
  dotnet add package GraphQL.Server.Ui.Playground
-
-
 
  ```
 
@@ -189,7 +217,7 @@ Run in Package Management Console
  ```
  and therefore in our GraphQLWDatabase database we have the tables created.
 
- ## Dependency injection for GraphQl
+ ## Dependency injection for GraphQL
  In the Program.cs file, we need to register the GraphQL services:
 
  ```csharp
@@ -579,8 +607,107 @@ public class OwnerType : ObjectGraphType<Owner>
 
 ```
 
+## Mutation in GraphQL
+Mutations are used to create, update, or delete data. They are similar to queries but they are used to modify data instead of fetching it.
+To create a mutation, we have to create a new class that inherits from the ObjectGraphType class and then we
+have to create a field with the mutation name, arguments, and resolve method.
+
+```csharp   
+public class AppMutation : ObjectGraphType
+{
+	public AppMutation(IOwnerRepository ownerRepository)
+	{
+		Field<OwnerType>(
+			"createOwner",
+			arguments: new QueryArguments(new QueryArgument<NonNullGraphType<OwnerInputType>> { Name = "owner" }),
+			resolve: context =>
+			{
+				var owner = context.GetArgument<Owner>("owner");
+				ownerRepository.Create(owner);
+				return owner;
+			}
+		);
+	}
+}
+```
+
+We need to have some InputTypes for the mutation. The InputType is used to define the input fields for the mutation.
+```csharp
+public class OwnerInputType : InputObjectGraphType
+{
+	public OwnerInputType()
+	{
+		Field<NonNullGraphType<StringGraphType>>("name");
+		Field<StringGraphType>("address");
+	}
+}
+```
+We can see, this class derives from the InputObjectGraphType class and not from the ObjectGraphType as before.
+
+The Field method is used to define the input fields for the mutation. The NonNullGraphType is used to define that the field can’t be null.
+The resolve method is used to create a new owner object from the input fields and then to call the Create method from the repository.
+
+Finally, we need to enhance our Schema class, with the Mutation property:
+```csharp
+public class AppSchema : Schema
+{
+    public AppSchema(IServiceProvider provider)
+        :base(provider)
+    {
+        Query = provider.GetRequiredService<AppQuery>();
+        Mutation = provider.GetRequiredService<AppMutation>();
+    }
+}
+```
+
+## Mutation for Create an Owner
+The AppMutation class has a constructor with "createOwner":
+```csharp
+public class AppMutation : ObjectGraphType
+{
+    public AppMutation(IOwnerRepository repository)
+    {
+        Field<OwnerType>(
+            "createOwner",
+            arguments: new QueryArguments(new QueryArgument<NonNullGraphType<OwnerInputType>> { Name = "owner" }),
+            resolve: context =>
+            {
+                var owner = context.GetArgument<Owner>("owner");
+                return repository.CreateOwner(owner);
+            }
+        );
+    }
+}
+```
+And in browser we can use the mutation:
+```graphql  
+mutation CreateOwner($owner: ownerInput!)
+{
+  createOwner(owner: $owner)
+  {
+	id,
+	name,
+	address,
+  }
+}
+```
+and in QUERY VARIABLES window we add the value for the owner:
+```json
+{
+  "owner": {
+	"name": "John Doe New",
+	"address": "New York address"
+  }
+}
+```
+
+Same for Update and Delete.
+
 ## Reference
 [x] https://app.pluralsight.com/library/courses/building-graphql-apis-aspdotnet-core/table-of-contents
+
 [x] https://github.com/graphql-dotnet/graphql-dotnet?tab=readme-ov-file
+
 [x] https://github.com/graphql-dotnet/examples/tree/master
+
 [x] https://code-maze.com/consume-graphql-api-with-asp-net-core/
