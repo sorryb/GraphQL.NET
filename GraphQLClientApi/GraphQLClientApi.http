@@ -1,0 +1,38 @@
+@GraphQLClientApi_HostAddress = https://localhost:5004
+
+GET {{GraphQLClientApi_HostAddress}}/owner/
+Accept: application/json
+
+###
+
+GET {{GraphQLClientApi_HostAddress}}/owner/791716be-7eff-4370-814e-3884d27ae682
+Accept: application/json
+###
+
+POST {{GraphQLClientApi_HostAddress}}/owner
+Content-Type: application/json
+
+  {
+    "name": "Clark Doe",
+    "address" : "New York, street Central 34"
+  }
+
+###
+
+PUT {{GraphQLClientApi_HostAddress}}/owner/791716be-7eff-4370-814e-3884d27ae682
+Content-Type: application/json
+
+  {
+    "name": "Clark Doe Updated",
+    "address" : "New York, street Central 34- updated"
+  }
+ 
+###
+  
+DELETE {{GraphQLClientApi_HostAddress}}/owner/4891a704-656a-4730-9b2b-c34d363d3e2a
+Accept: application/json
+
+###
+
+
+
