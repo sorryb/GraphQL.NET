@@ -3,6 +3,9 @@
 GraphQL is a query language. It executes queries by using type systems which we define for our data. 
 GraphQL isn’t tied to any specific language or a database, just the opposite, it is adaptable to our code and our data as well.
 
+In the first csproj we will create a simple Asp.NET Core Web API project with EF Core as an ORM for SQL Server which use GraphQL to query the data.
+The second one we use GraphQL-Client to query the data from the first project.
+
 ## Create a Asp.NET Core Web API Project
 
 ```bash
