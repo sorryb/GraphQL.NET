@@ -325,12 +325,259 @@ A simple query looks like this:
 }
 ```
 
+## Using Arguments in Queries
+We will create a new field with the OwnerType return value. The name is „owner“ and we use the arguments part to create an argument for this query:
+```csharp
+arguments: new QueryArguments(new QueryArgument<NonNullGraphType<IdGraphType>> { Name = "ownerId" }),
+```
 
+Our argument can’t be null (NonNullGraphType) 
+and it must be of the IdGraphType type with the „ownerId“ name. The resolve part is pretty self-explanatory.
 
+```csharp
+public class AppQuery : ObjectGraphType
+{
+    public AppQuery(IOwnerRepository repository)
+    {
+        Field<OwnerType>(
+            "owner",
+            arguments: new QueryArguments(new QueryArgument<NonNullGraphType<IdGraphType>> { Name = "ownerId" }),
+            resolve: context =>
+            {
+                var id = context.GetArgument<Guid>("ownerId");
+                return repository.GetById(id);
+            }
+        );
+    }
+}
+```
 
+We can use query parameter in graphql playground:
+```graphql
+{
+  owner(ownerId: "b1d2b3b4-5b6b-7b8b-9b0b-1b2b3b4b5b6b")
+  {
+	name
+	id
+	accounts
+	{
+	  type
+	}
+  }
+}
+```
 
+## Handling Errors in GraphQL
 
+But what if the id parameter is not of the Guid type, then, we would like to return a message to the client. So let’s add a slight modification in the resolve part with an if statement:
+```csharp
+Field<OwnerType>(
+    "owner",
+    arguments: new QueryArguments(new QueryArgument<NonNullGraphType<IdGraphType>> { Name = "ownerId" }),
+    resolve: context =>
+    {
+        Guid id;
+        if (!Guid.TryParse(context.GetArgument<string>("ownerId"), out id))
+        {
+            context.Errors.Add(new ExecutionError("Wrong value for guid"));
+            return null;
+        }
 
+         return repository.GetById(id);
+     }
+);
+```
+Let's check it with a wrong argument:
+```graphql
+{
+  owner(ownerId: "WRONG-5b6b-7b8b-9b0b-1b2b3b4b5b6b")
+  {
+	name
+	id
+	accounts
+	{
+	  type
+	}
+  }
+}
+```
+and we get the error message:
+```json
+{
+  "errors": [
+    {
+      "message": "Wrong value for guid as ownerId!"
+    }
+  ],
+  "data": {
+    "owner": null
+  },
+  "extensions": {}
+}
+```
+
+## Aliases in GraphQL
+
+We add some aliases in front of our query -__first:owner__ or __second:owner__ - to make a differentiation between the two owners:
+```graphql
+{  
+  first:owner(ownerId: "e5597d0a-0b5b-4c1e-9d5a-b56f759f3cfb")
+  {
+    name
+  }, 
+  second:owner(ownerId: "fce63739-eb06-4a55-b58f-eca4dbdd8265")
+  {
+    name
+  }
+}
+```
+
+## Fragments in GraphQL
+Fragments are used to avoid repeating the same fields in different queries. We can define a fragment and then use it in different queries.
+
+Instead of this:
+```graphql
+{
+  first: owner(ownerId: "fce63739-eb06-4a55-b58f-eca4dbdd8265")
+  {
+    id
+    name
+    address
+    accounts
+    {
+        id
+      type
+    }
+  },
+  second: owner(ownerId: "fce63739-eb06-4a55-b58f-eca4dbdd8265")
+  {
+    id
+    name
+    address
+    accounts
+    {
+        id
+      type
+    }
+  }
+}
+```
+
+we can use a fragment:
+```graphql  
+fragment ownerFields on OwnerType
+{
+  id
+  name
+  address
+  accounts
+    {
+      id
+      type
+    }
+}
+
+{
+  first: owner(ownerId: "fce63739-eb06-4a55-b58f-eca4dbdd8265")
+  {
+	...ownerFields
+  },
+  second: owner(ownerId: "fce63739-eb06-4a55-b58f-eca4dbdd8265")
+  {
+	...ownerFields
+  }
+}
+```
+
+## Named query in GraphQL
+To create a named query, we have to use a „query“ keyword in front of the entire query with the query name as well. Then we can pass arguments for the query if we have some. 
+The important thing with the named queries is if a query has an argument we need to use the QUERY VARIABLES window to assign a value for that argument:
+```graphql
+query GetOwner($ownerId: ID!)
+{
+  owner(ownerId: $ownerId)
+  {
+	address
+	accounts
+	{
+	  type
+	}
+  }
+}
+```
+and in QUERY VARIABLES window we add the value for the ownerId:
+```json
+{
+  "ownerId": "fce63739-eb06-4a55-b58f-eca4dbdd8265"
+}
+```
+
+## Directives in GraphQL: include and skip
+Directives are used to conditionally include fields or fragments. We can use the @include or @skip directive to include or skip a field based on the value of a variable.
+```graphql
+query GetOwner($ownerId: ID!, $includeAddress: Boolean!)
+{
+  owner(ownerId: $ownerId)
+  {
+	name
+	accounts
+	{
+	  type
+	}
+	address @include(if: $includeAddress)
+    id @skip(if: $includeAddress)
+  }
+}
+```
+and in QUERY VARIABLES window we add the value for the ownerId and includeAddress:
+```json
+{
+  "ownerId": "fce63739-eb06-4a55-b58f-eca4dbdd8265",
+  "includeAddress": true
+}
+```
+
+Change the __includeAddress__ to false and we get the response without the address field.
+
+##DataLoader in GraphQL
+DataLoader is a utility that helps us to batch and cache our data requests. It is used to reduce the number of queries to the database and to avoid the N+1 problem.
+The N+1 problem occurs when we have a query that fetches a list of items and then for each item in the list, we have to make another query to fetch some additional data.
+This can be a problem when we have a lot of items in the list because we have to make a lot of queries to the database.
+To avoid this problem, we can use the DataLoader utility which helps us to batch and cache our data requests.
+
+To use the DataLoader utility, we have to install the GraphQL.DataLoader package:
+```bash
+dotnet add package GraphQL.DataLoader
+```
+but in elder versions of tit is included in Graphql package.
+
+How to use it:
+- add it in configuration first:
+```csharp   
+ builder.Services.AddGraphQL(o => { o.ExposeExceptions = false; })
+        .AddGraphTypes(ServiceLifetime.Scoped)
+        .AddDataLoader();
+```
+- inject the IDataLoaderContextAccessor in the constructor and use it with the Context.GetOrAddCollectionBatchLoader method with the name of the loader key as a first parameter and our created method as the second parameter.
+```csharp
+public class OwnerType : ObjectGraphType<Owner>
+{
+    public OwnerType(IAccountRepository repository, IDataLoaderContextAccessor dataLoader)
+    {
+        Field(x => x.Id, type: typeof(IdGraphType)).Description("Id property from the owner object.");
+        Field(x => x.Name, type: typeof(IdGraphType)).Description("Name property from the owner object.");
+        Field(x => x.Address, type: typeof(IdGraphType)).Description("Address property from the owner object.");
+        Field<ListGraphType<AccountType>>(
+            "accounts",
+            resolve: context =>
+            {
+                var loader = dataLoader.Context.GetOrAddCollectionBatchLoader<Guid, Account>("GetAccountsByOwnerIds", repository.GetAccountsByOwnerIds);
+                return loader.LoadAsync(context.Source.Id);
+            });
+    }
+} 
+
+```
 
 ## Reference
 [x] https://app.pluralsight.com/library/courses/building-graphql-apis-aspdotnet-core/table-of-contents
